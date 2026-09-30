@@ -1,0 +1,13 @@
+# --- Application (originally pinned to 2017-era versions; upgraded and
+#     tested against Django 4.2 LTS as part of this project's modernization) ---
+Django==4.2.30
+djangorestframework==3.17.2
+django-cors-headers==4.9.0
+django-extensions==4.1
+PyJWT==2.14.0
+six==1.17.0
+
+# --- Production runtime ---
+gunicorn==23.0.0          # WSGI server, replaces `manage.py runserver`
+psycopg2-binary==2.9.9    # Postgres driver (RDS in prod, see docker-compose for local)
+whitenoise==6.12.0        # Serves collected static files without a separate nginx sidecar

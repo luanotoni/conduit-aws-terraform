@@ -1,0 +1,16 @@
+.git
+.gitignore
+.github
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+db.sqlite3
+staticfiles/
+.env
+.env.*
+venv/
+.venv/
+*.md
+project-logo.png

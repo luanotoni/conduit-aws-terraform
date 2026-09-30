@@ -1,0 +1,12 @@
+# Copy this file to terraform.tfvars and fill in your own values.
+# terraform.tfvars is gitignored - never commit it (even though nothing here
+# is secret, it's still your personal environment config).
+
+alert_email = "you@example.com"
+
+# aws_region         = "us-east-1"
+# availability_zones = ["us-east-1a", "us-east-1b"]
+
+# --- Cut these to save money if the deadline is tight ---
+# single_nat_gateway = true
+# db_multi_az        = false
