@@ -20,7 +20,7 @@ resource "aws_db_subnet_group" "this" {
 
 resource "aws_security_group" "db" {
   name_prefix = "${local.name_prefix}-db-"
-  description = "RDS Postgres. Ingress rules are attached from the root module to avoid a circular dependency with the ECS module's security group."
+  description = "RDS Postgres - ingress attached from the root module to avoid a circular dependency with the ECS module security group"
   vpc_id      = var.vpc_id
 
   egress {

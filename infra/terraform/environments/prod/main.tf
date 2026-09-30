@@ -16,6 +16,7 @@ module "database" {
   private_subnet_ids  = module.network.private_subnet_ids
   multi_az            = var.db_multi_az
   instance_class      = var.db_instance_class
+  backup_retention_days = var.db_backup_retention_days 
   deletion_protection = false # flip to true once this holds data you actually care about
 }
 
@@ -47,7 +48,7 @@ resource "aws_security_group_rule" "ecs_to_db" {
   protocol                 = "tcp"
   security_group_id        = module.database.security_group_id
   source_security_group_id = module.ecs.ecs_tasks_security_group_id
-  description               = "Django containers -> Postgres"
+  description               = "Django containers to Postgres"
 }
 
 module "waf" {

@@ -71,3 +71,8 @@ variable "extra_allowed_hosts" {
   type        = string
   default     = ""
 }
+
+variable "db_backup_retention_days" {
+  type    = number
+  default = 1
+}
