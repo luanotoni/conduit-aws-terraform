@@ -122,7 +122,10 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
       # Any branch/PR/tag in this one repo - not "any repo in the org", and
       # not scoped to only `main` because the CI workflow also needs this role
       # to run `terraform plan` on pull requests from branches.
-      values = ["repo:${var.github_repo}:*"]
+      values = [
+        "repo:${var.github_repo}:*",
+        "repo:${split("/", var.github_repo)[0]}@*/${split("/", var.github_repo)[1]}@*:*",
+      ]
     }
   }
 }
