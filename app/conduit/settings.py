@@ -60,7 +60,7 @@ INSTALLED_APPS = [
     'rest_framework',
 
     'conduit.apps.articles',
-    'conduit.apps.authentication',
+    'conduit.apps.authentication.AuthenticationAppConfig',
     'conduit.apps.core',
     'conduit.apps.profiles',
 ]

@@ -9,6 +9,12 @@ class HealthcheckTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
 
+    def test_tags_returns_the_realworld_response_shape(self):
+        """The external frontend loads this endpoint on its home page."""
+        response = self.client.get("/api/tags")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"tags": []})
+
 
 class AuthFlowSmokeTests(TestCase):
     """
@@ -52,6 +58,15 @@ class AuthFlowSmokeTests(TestCase):
         self.assertEqual(me_response.status_code, 200)
         self.assertEqual(me_response.json()["user"]["email"], "smoke@test.com")
 
+        # This endpoint must be evaluated before the generic
+        # /api/articles/:slug route; the frontend loads it after login.
+        feed_response = self.client.get(
+            "/api/articles/feed?limit=10&offset=0",
+            HTTP_AUTHORIZATION=f"Token {token}",
+        )
+        self.assertEqual(feed_response.status_code, 200)
+        self.assertEqual(feed_response.json()["articles"], [])
+
     def test_authenticated_endpoint_rejects_missing_token(self):
         response = self.client.get("/api/user/")
-        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.status_code, 403)

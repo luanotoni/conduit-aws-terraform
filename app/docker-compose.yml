@@ -35,11 +35,16 @@ services:
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
       RUN_MIGRATIONS_ON_START: "true"
+      RUN_COLLECTSTATIC_ON_START: "true"
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - .:/app
+      # The source bind mount hides staticfiles created during image build.
+      # Keep generated assets in a separate local-only named volume instead.
+      - staticfiles:/app/staticfiles
 
 volumes:
   postgres_data:
+  staticfiles:

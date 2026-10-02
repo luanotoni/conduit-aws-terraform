@@ -7,6 +7,10 @@ alert_email = "you@example.com"
 # aws_region         = "us-east-1"
 # availability_zones = ["us-east-1a", "us-east-1b"]
 
+# Browser origin of the separately hosted frontend. It must be the exact
+# scheme + host (+ port when applicable), without a trailing slash.
+# cors_allowed_origins = "https://frontend.example.com"
+
 # --- Cut these to save money if the deadline is tight ---
 # single_nat_gateway = true
 # db_multi_az        = false

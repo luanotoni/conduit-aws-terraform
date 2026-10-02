@@ -22,6 +22,7 @@ env:
   ECS_SERVICE: ${{ vars.ECS_SERVICE }}
   ECS_TASK_FAMILY: ${{ vars.ECS_TASK_DEFINITION_FAMILY }}
   CONTAINER_NAME: web
+  CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS }}
 
 jobs:
   deploy:
@@ -64,11 +65,31 @@ jobs:
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ steps.build-image.outputs.image }}
 
+      # Terraform ignores container_definitions after bootstrap so it never
+      # rolls a service back to the placeholder image. Keep this browser-facing
+      # setting deployable by applying it to the task definition in the CD flow.
+      - name: Set frontend CORS origins
+        run: |
+          if [ -z "$CORS_ALLOWED_ORIGINS" ]; then
+            cp "${{ steps.render-task-def.outputs.task-definition }}" rendered-task-def-with-cors.json
+            echo "CORS_ALLOWED_ORIGINS is unset; preserving the existing task definition value."
+          else
+            jq --arg container "$CONTAINER_NAME" --arg origins "$CORS_ALLOWED_ORIGINS" '
+              .containerDefinitions |= map(
+                if .name == $container then
+                  .environment |= map(
+                    if .name == "CORS_ALLOWED_ORIGINS" then .value = $origins else . end
+                  )
+                else . end
+              )
+            ' "${{ steps.render-task-def.outputs.task-definition }}" > rendered-task-def-with-cors.json
+          fi
+
       - name: Register new task definition revision
         id: register-task-def
         run: |
           jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
-            "${{ steps.render-task-def.outputs.task-definition }}" > rendered-task-def.json
+            rendered-task-def-with-cors.json > rendered-task-def.json
 
           TASK_DEF_ARN=$(aws ecs register-task-definition \
             --cli-input-json file://rendered-task-def.json \

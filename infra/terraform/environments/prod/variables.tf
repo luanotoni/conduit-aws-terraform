@@ -72,6 +72,12 @@ variable "extra_allowed_hosts" {
   default     = ""
 }
 
+variable "cors_allowed_origins" {
+  description = "Comma-separated browser origins allowed to call the API, for example https://frontend.example.com."
+  type        = string
+  default     = "http://localhost:4100"
+}
+
 variable "db_backup_retention_days" {
   type    = number
   default = 1

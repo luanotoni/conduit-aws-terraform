@@ -110,6 +110,7 @@ In the repo's **Settings → Secrets and variables → Actions → Variables**, 
 | `PRIVATE_SUBNET_IDS` | comma-separated, no spaces, e.g. `subnet-abc,subnet-def` (`terraform output -raw` on the network module, or check the VPC console) |
 | `ECS_TASKS_SECURITY_GROUP_ID` | from the ECS module's `ecs_tasks_security_group_id` output |
 | `ALERT_EMAIL` | same address as `terraform.tfvars` |
+| `CORS_ALLOWED_ORIGINS` | Exact origin of the separately deployed frontend, e.g. `https://frontend.example.com` (no trailing slash) |
 
 No secrets needed for AWS auth — that's the point of OIDC.
 

@@ -34,6 +34,7 @@ module "ecs" {
   enable_https              = var.enable_https
   acm_certificate_arn       = var.acm_certificate_arn
   extra_allowed_hosts       = var.extra_allowed_hosts # your real domain, once you have one
+  cors_allowed_origins      = var.cors_allowed_origins
 }
 
 # --- Wiring that would otherwise be a circular module dependency ------------------

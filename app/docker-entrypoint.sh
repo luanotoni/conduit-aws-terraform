@@ -28,4 +28,12 @@ if [ "$RUN_MIGRATIONS_ON_START" = "true" ]; then
   python manage.py migrate --noinput
 fi
 
+# docker-compose bind-mounts the source tree over /app, which would otherwise
+# hide the staticfiles directory assembled at image-build time. This is only
+# enabled for local development; ECS keeps using the build-time collection.
+if [ "$RUN_COLLECTSTATIC_ON_START" = "true" ]; then
+  echo "Collecting static files for local development..."
+  python manage.py collectstatic --noinput
+fi
+
 exec "$@"
