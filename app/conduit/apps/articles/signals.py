@@ -20,7 +20,7 @@ def add_slug_to_article_if_not_exists(sender, instance, *args, **kwargs):
         while len(slug + '-' + unique) > MAXIMUM_SLUG_LENGTH:
             parts = slug.split('-')
 
-            if len(parts) is 1:
+            if len(parts) == 1:
                 # The slug has no hypens. To append the unique string we must
                 # arbitrarly remove `len(unique)` characters from the end of
                 # `slug`. Subtract one to account for extra hyphen.

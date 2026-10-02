@@ -67,6 +67,30 @@ class AuthFlowSmokeTests(TestCase):
         self.assertEqual(feed_response.status_code, 200)
         self.assertEqual(feed_response.json()["articles"], [])
 
+        article_response = self.client.post(
+            "/api/articles",
+            data=json.dumps(
+                {
+                    "article": {
+                        "title": "Smoke test article",
+                        "description": "Checks the authenticated article flow.",
+                        "body": "Smoke test body.",
+                        "tagList": ["smoke"],
+                    }
+                }
+            ),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Token {token}",
+        )
+        self.assertEqual(article_response.status_code, 201)
+        self.assertTrue(article_response.json()["article"]["slug"])
+
+        profile_response = self.client.get(
+            "/api/profiles/smoketest", HTTP_AUTHORIZATION=f"Token {token}"
+        )
+        self.assertEqual(profile_response.status_code, 200)
+        self.assertEqual(profile_response.json()["profile"]["username"], "smoketest")
+
     def test_authenticated_endpoint_rejects_missing_token(self):
         response = self.client.get("/api/user/")
         self.assertEqual(response.status_code, 403)

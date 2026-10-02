@@ -59,7 +59,7 @@ INSTALLED_APPS = [
     'django_extensions',
     'rest_framework',
 
-    'conduit.apps.articles',
+    'conduit.apps.articles.ArticlesAppConfig',
     'conduit.apps.authentication.AuthenticationAppConfig',
     'conduit.apps.core',
     'conduit.apps.profiles',
