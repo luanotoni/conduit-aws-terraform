@@ -66,6 +66,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # First, so ALB health checks (Host = task private IP) skip ALLOWED_HOSTS.
+    'conduit.apps.core.middleware.HealthCheckMiddleware',
     'django.middleware.security.SecurityMiddleware',
     # Serves collected static files directly from the container, so we don't
     # need a separate nginx sidecar just to hand out CSS/JS/admin assets.

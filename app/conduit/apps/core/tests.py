@@ -9,6 +9,15 @@ class HealthcheckTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
 
+    def test_healthz_accepts_task_private_ip_as_host(self):
+        """The ALB health checker sends the task IP as Host, not the ALB DNS."""
+        with self.settings(ALLOWED_HOSTS=["example-alb.elb.amazonaws.com"]):
+            response = self.client.get("/healthz", HTTP_HOST="10.0.10.38:8000")
+            self.assertEqual(response.status_code, 200)
+
+            other = self.client.get("/api/tags", HTTP_HOST="10.0.10.38:8000")
+            self.assertEqual(other.status_code, 400)
+
     def test_tags_returns_the_realworld_response_shape(self):
         """The external frontend loads this endpoint on its home page."""
         response = self.client.get("/api/tags")
