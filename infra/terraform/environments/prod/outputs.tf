@@ -36,3 +36,16 @@ output "private_subnet_ids" {
 output "ecs_tasks_security_group_id" {
   value = module.ecs.ecs_tasks_security_group_id
 }
+
+output "frontend_url" {
+  description = "Public URL of the React frontend (API is proxied under /api)"
+  value       = "https://${module.frontend.distribution_domain_name}"
+}
+
+output "frontend_bucket_name" {
+  value = module.frontend.bucket_name
+}
+
+output "frontend_distribution_id" {
+  value = module.frontend.distribution_id
+}

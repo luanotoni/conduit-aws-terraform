@@ -10,14 +10,14 @@ module "network" {
 module "database" {
   source = "../../modules/database"
 
-  project_name        = var.project_name
-  environment         = var.environment
-  vpc_id              = module.network.vpc_id
-  private_subnet_ids  = module.network.private_subnet_ids
-  multi_az            = var.db_multi_az
-  instance_class      = var.db_instance_class
-  backup_retention_days = var.db_backup_retention_days 
-  deletion_protection = false # flip to true once this holds data you actually care about
+  project_name          = var.project_name
+  environment           = var.environment
+  vpc_id                = module.network.vpc_id
+  private_subnet_ids    = module.network.private_subnet_ids
+  multi_az              = var.db_multi_az
+  instance_class        = var.db_instance_class
+  backup_retention_days = var.db_backup_retention_days
+  deletion_protection   = false # flip to true once this holds data you actually care about
 }
 
 module "ecs" {
@@ -49,7 +49,7 @@ resource "aws_security_group_rule" "ecs_to_db" {
   protocol                 = "tcp"
   security_group_id        = module.database.security_group_id
   source_security_group_id = module.ecs.ecs_tasks_security_group_id
-  description               = "Django containers to Postgres"
+  description              = "Django containers to Postgres"
 }
 
 module "waf" {
@@ -63,12 +63,20 @@ module "waf" {
 module "monitoring" {
   source = "../../modules/monitoring"
 
-  project_name             = var.project_name
-  environment              = var.environment
-  alert_email              = var.alert_email
-  ecs_cluster_name         = module.ecs.cluster_name
-  ecs_service_name         = module.ecs.service_name
-  alb_arn_suffix           = module.ecs.alb_arn_suffix
-  target_group_arn_suffix  = module.ecs.target_group_arn_suffix
-  db_instance_id           = module.database.db_instance_id
+  project_name            = var.project_name
+  environment             = var.environment
+  alert_email             = var.alert_email
+  ecs_cluster_name        = module.ecs.cluster_name
+  ecs_service_name        = module.ecs.service_name
+  alb_arn_suffix          = module.ecs.alb_arn_suffix
+  target_group_arn_suffix = module.ecs.target_group_arn_suffix
+  db_instance_id          = module.database.db_instance_id
+}
+
+module "frontend" {
+  source = "../../modules/frontend"
+
+  project_name = var.project_name
+  environment  = var.environment
+  alb_dns_name = module.ecs.alb_dns_name
 }

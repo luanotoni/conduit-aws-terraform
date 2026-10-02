@@ -359,7 +359,10 @@ resource "aws_ecs_service" "this" {
   depends_on = [aws_lb_listener.http]
 
   lifecycle {
-    ignore_changes = [desired_count] # let autoscaling own this after the first apply
+    # Autoscaling owns desired_count; the CD pipeline registers new task
+    # definition revisions, so a plain `terraform apply` must not roll the
+    # service back to the revision Terraform created at bootstrap.
+    ignore_changes = [desired_count, task_definition]
   }
 }
 

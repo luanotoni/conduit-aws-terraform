@@ -19,6 +19,9 @@ because the app demanded it.
 Internet
    │
    ▼
+ [ CloudFront ] ── HTTPS; React SPA from a private S3 bucket,
+   │               /api/* proxied to the ALB (same origin → no CORS)
+   ▼
  [ WAF ]  AWS-managed rule sets + rate limiting
    │
    ▼
@@ -39,10 +42,11 @@ Django secret key — never in the task definition as plaintext), CloudWatch
 
 ```
 app/                      Django app (RealWorld/Conduit, modernized)
-infra/terraform/modules/  network, database, ecs, waf, monitoring
+infra/terraform/modules/  network, database, ecs, waf, monitoring, frontend
 infra/terraform/environments/prod/   wires the modules together
 infra/bootstrap/          one-time setup: GitHub OIDC role + TF state backend
 .github/workflows/        ci.yml (test + plan), cd.yml (build + deploy)
+scripts/deploy-frontend.sh  build the React frontend and publish it to S3/CloudFront
 ```
 
 ## What changed in the app during modernization
@@ -123,6 +127,17 @@ migrations as a one-off task, then updates the service. Once it's green:
 ```bash
 curl http://<alb_dns_name>/healthz
 ```
+
+### 4b. Publish the frontend
+The React frontend ([RealWorld react-redux](https://github.com/gothinkster/react-redux-realworld-example-app),
+restyled) lives in its own checkout. Build it and push it to the bucket
+behind CloudFront:
+```bash
+scripts/deploy-frontend.sh ~/frontend-demo
+terraform -chdir=infra/terraform/environments/prod output -raw frontend_url
+```
+The build uses `REACT_APP_API_ROOT=/api`; CloudFront forwards `/api/*` to
+the ALB, so the browser only ever talks to one HTTPS origin.
 
 ### 5. Tear it down when you're done demoing
 ```bash

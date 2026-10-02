@@ -1,7 +1,7 @@
 locals {
-  name_prefix   = "${var.project_name}-${var.environment}"
-  az_count      = length(var.availability_zones)
-  nat_gw_count  = var.single_nat_gateway ? 1 : local.az_count
+  name_prefix  = "${var.project_name}-${var.environment}"
+  az_count     = length(var.availability_zones)
+  nat_gw_count = var.single_nat_gateway ? 1 : local.az_count
 }
 
 # --- VPC ----------------------------------------------------------------------

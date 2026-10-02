@@ -76,8 +76,8 @@ resource "aws_db_instance" "this" {
 
   multi_az                = var.multi_az
   backup_retention_period = var.backup_retention_days
-  backup_window            = "06:00-07:00" # UTC, chosen as a low-traffic window
-  maintenance_window       = "mon:07:00-mon:08:00"
+  backup_window           = "06:00-07:00" # UTC, chosen as a low-traffic window
+  maintenance_window      = "mon:07:00-mon:08:00"
 
   deletion_protection       = var.deletion_protection
   skip_final_snapshot       = !var.deletion_protection

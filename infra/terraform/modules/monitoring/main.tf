@@ -158,9 +158,9 @@ resource "aws_cloudwatch_dashboard" "this" {
         width  = 12
         height = 6
         properties = {
-          title   = "ECS CPU / Memory"
-          view    = "timeSeries"
-          region  = data.aws_region.current.name
+          title  = "ECS CPU / Memory"
+          view   = "timeSeries"
+          region = data.aws_region.current.name
           metrics = [
             ["AWS/ECS", "CPUUtilization", "ClusterName", var.ecs_cluster_name, "ServiceName", var.ecs_service_name],
             ["AWS/ECS", "MemoryUtilization", "ClusterName", var.ecs_cluster_name, "ServiceName", var.ecs_service_name],
@@ -174,9 +174,9 @@ resource "aws_cloudwatch_dashboard" "this" {
         width  = 12
         height = 6
         properties = {
-          title   = "ALB requests / 5xx / latency"
-          view    = "timeSeries"
-          region  = data.aws_region.current.name
+          title  = "ALB requests / 5xx / latency"
+          view   = "timeSeries"
+          region = data.aws_region.current.name
           metrics = [
             ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", var.alb_arn_suffix],
             ["AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "LoadBalancer", var.alb_arn_suffix],
@@ -191,9 +191,9 @@ resource "aws_cloudwatch_dashboard" "this" {
         width  = 12
         height = 6
         properties = {
-          title   = "RDS CPU / free storage"
-          view    = "timeSeries"
-          region  = data.aws_region.current.name
+          title  = "RDS CPU / free storage"
+          view   = "timeSeries"
+          region = data.aws_region.current.name
           metrics = [
             ["AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", var.db_instance_id],
             ["AWS/RDS", "FreeStorageSpace", "DBInstanceIdentifier", var.db_instance_id],
