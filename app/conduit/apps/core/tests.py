@@ -99,6 +99,55 @@ class AuthFlowSmokeTests(TestCase):
         )
         self.assertEqual(profile_response.status_code, 200)
         self.assertEqual(profile_response.json()["profile"]["username"], "smoketest")
+        # No third-party placeholder URL: the frontend renders its own avatar.
+        self.assertIsNone(profile_response.json()["profile"]["image"])
+
+        slug = article_response.json()["article"]["slug"]
+        favorite_response = self.client.post(
+            f"/api/articles/{slug}/favorite", HTTP_AUTHORIZATION=f"Token {token}"
+        )
+        self.assertEqual(favorite_response.status_code, 201)
+        self.assertTrue(favorite_response.json()["article"]["favorited"])
+        self.assertEqual(favorite_response.json()["article"]["favoritesCount"], 1)
+
+        unfavorite_response = self.client.delete(
+            f"/api/articles/{slug}/favorite", HTTP_AUTHORIZATION=f"Token {token}"
+        )
+        self.assertEqual(unfavorite_response.status_code, 200)
+        self.assertFalse(unfavorite_response.json()["article"]["favorited"])
+
+    def test_settings_update_persists_profile_image(self):
+        register = self.client.post(
+            "/api/users/",
+            data=json.dumps(
+                {"user": {"username": "img", "email": "img@test.com", "password": "supersecret123"}}
+            ),
+            content_type="application/json",
+        )
+        token = register.json()["user"]["token"]
+        auth = {"HTTP_AUTHORIZATION": f"Token {token}"}
+        image = "https://example.com/me.png"
+
+        update = self.client.put(
+            "/api/user",
+            data=json.dumps({"user": {"image": image, "bio": "hi"}}),
+            content_type="application/json",
+            **auth,
+        )
+        self.assertEqual(update.status_code, 200)
+        self.assertEqual(update.json()["user"]["image"], image)
+        self.assertEqual(
+            self.client.get("/api/profiles/img").json()["profile"]["image"], image
+        )
+
+        cleared = self.client.put(
+            "/api/user",
+            data=json.dumps({"user": {"image": ""}}),
+            content_type="application/json",
+            **auth,
+        )
+        self.assertEqual(cleared.status_code, 200)
+        self.assertIsNone(cleared.json()["user"]["image"])
 
     def test_authenticated_endpoint_rejects_missing_token(self):
         response = self.client.get("/api/user/")

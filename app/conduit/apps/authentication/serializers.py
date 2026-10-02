@@ -117,7 +117,7 @@ class UserSerializer(serializers.ModelSerializer):
     # We want to get the `bio` and `image` fields from the related Profile
     # model.
     bio = serializers.CharField(source='profile.bio', read_only=True)
-    image = serializers.CharField(source='profile.image', read_only=True)
+    image = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -135,6 +135,8 @@ class UserSerializer(serializers.ModelSerializer):
         # field.
         read_only_fields = ('token',)
 
+    def get_image(self, instance):
+        return instance.profile.image or None
 
     def update(self, instance, validated_data):
         """Performs an update on a User."""

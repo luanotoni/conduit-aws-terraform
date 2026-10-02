@@ -6,7 +6,11 @@ from .models import Profile
 class ProfileSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username')
     bio = serializers.CharField(allow_blank=True, required=False)
-    image = serializers.SerializerMethodField()
+    # Writable so PUT /api/user can actually change it (a SerializerMethodField
+    # is read-only and silently dropped the value). Empty means "no image".
+    image = serializers.URLField(
+        allow_blank=True, allow_null=True, required=False, max_length=200
+    )
     following = serializers.SerializerMethodField()
 
     class Meta:
@@ -14,11 +18,15 @@ class ProfileSerializer(serializers.ModelSerializer):
         fields = ('username', 'bio', 'image', 'following',)
         read_only_fields = ('username',)
 
-    def get_image(self, obj):
-        if obj.image:
-            return obj.image
+    def validate_image(self, value):
+        return value or ''
 
-        return 'https://static.productionready.io/images/smiley-cyrus.jpg'
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # The RealWorld spec uses null for "no image"; the frontend renders its
+        # own fallback avatar instead of depending on a third-party URL.
+        data['image'] = data['image'] or None
+        return data
 
     def get_following(self, instance):
         request = self.context.get('request', None)
