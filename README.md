@@ -42,10 +42,11 @@ Django secret key — never in the task definition as plaintext), CloudWatch
 
 ```
 app/                      Django app (RealWorld/Conduit, modernized)
+frontend/                 React/Redux RealWorld client, restyled
 infra/terraform/modules/  network, database, ecs, waf, monitoring, frontend
 infra/terraform/environments/prod/   wires the modules together
 infra/bootstrap/          one-time setup: GitHub OIDC role + TF state backend
-.github/workflows/        ci.yml (test + plan), cd.yml (build + deploy)
+.github/workflows/        ci.yml (test + plan), cd.yml (build + deploy), frontend.yml (SPA → S3/CloudFront)
 scripts/deploy-frontend.sh  build the React frontend and publish it to S3/CloudFront
 ```
 
@@ -129,15 +130,21 @@ curl http://<alb_dns_name>/healthz
 ```
 
 ### 4b. Publish the frontend
-The React frontend ([RealWorld react-redux](https://github.com/gothinkster/react-redux-realworld-example-app),
-restyled) lives in its own checkout. Build it and push it to the bucket
-behind CloudFront:
-```bash
-scripts/deploy-frontend.sh ~/frontend-demo
-terraform -chdir=infra/terraform/environments/prod output -raw frontend_url
-```
+`frontend/` is the [RealWorld react-redux client](https://github.com/gothinkster/react-redux-realworld-example-app),
+restyled. Add two more repository variables from the prod Terraform outputs:
+
+| Variable | Value |
+|---|---|
+| `FRONTEND_BUCKET` | `terraform output -raw frontend_bucket_name` |
+| `FRONTEND_DISTRIBUTION_ID` | `terraform output -raw frontend_distribution_id` |
+
+From then on every push to `main` touching `frontend/` builds it and publishes
+it (`.github/workflows/frontend.yml`). For a manual deploy from your machine:
+`scripts/deploy-frontend.sh`. The site URL is `terraform output -raw frontend_url`.
+
 The build uses `REACT_APP_API_ROOT=/api`; CloudFront forwards `/api/*` to
-the ALB, so the browser only ever talks to one HTTPS origin.
+the ALB, so the browser only ever talks to one HTTPS origin. Locally,
+`cd frontend && npm install && npm start` talks to the ALB directly.
 
 ### 5. Tear it down when you're done demoing
 ```bash

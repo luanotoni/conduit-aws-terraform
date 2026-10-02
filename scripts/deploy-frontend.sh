@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # Build the React frontend and publish it to the S3 bucket behind CloudFront.
 #
-#   scripts/deploy-frontend.sh [path-to-frontend]   (default: ~/frontend-demo)
+#   scripts/deploy-frontend.sh [path-to-frontend]   (default: ./frontend)
+#
+# Pushes to main touching frontend/ deploy automatically via
+# .github/workflows/frontend.yml; this script is for manual/local deploys.
 #
 # Bucket and distribution come from the prod Terraform outputs. The build calls
 # the API at the relative path /api, which CloudFront proxies to the ALB.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-FRONTEND_DIR="$(cd "${1:-$HOME/frontend-demo}" && pwd)"
+FRONTEND_DIR="$(cd "${1:-$REPO_ROOT/frontend}" && pwd)"
 TF_DIR="$REPO_ROOT/infra/terraform/environments/prod"
 
 BUCKET="$(terraform -chdir="$TF_DIR" output -raw frontend_bucket_name)"

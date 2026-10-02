@@ -94,8 +94,8 @@ resource "aws_dynamodb_table" "tf_locks" {
 # not be perfectly current.
 
 resource "aws_iam_openid_connect_provider" "github" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
   thumbprint_list = [
     "6938fd4d98bab03faadb97b34396831e3780aea1",
     "1c58a3a8518e8759bf075b76b750d4f2df264fcd",
@@ -192,6 +192,29 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       aws_s3_bucket.tf_state.arn,
       "${aws_s3_bucket.tf_state.arn}/*",
     ]
+  }
+
+  # The frontend workflow only publishes build output: sync the SPA bucket
+  # (created by infra/terraform/modules/frontend) and invalidate CloudFront.
+  statement {
+    sid       = "FrontendBucketList"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = ["arn:aws:s3:::conduit-prod-frontend-*"]
+  }
+
+  statement {
+    sid       = "FrontendBucketObjects"
+    effect    = "Allow"
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = ["arn:aws:s3:::conduit-prod-frontend-*/*"]
+  }
+
+  statement {
+    sid       = "FrontendInvalidation"
+    effect    = "Allow"
+    actions   = ["cloudfront:CreateInvalidation", "cloudfront:GetInvalidation"]
+    resources = ["arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/*"]
   }
 
   statement {

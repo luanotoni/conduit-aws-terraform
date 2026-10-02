@@ -1,0 +1,71 @@
+name: Frontend
+
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Same-origin API: CloudFront proxies /api/* to the ALB.
+      - name: Build
+        run: npm run build
+        env:
+          REACT_APP_API_ROOT: /api
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: github.event_name != 'pull_request'
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # Fingerprinted assets are immutable; everything else must revalidate so
+      # a deploy is visible immediately.
+      - name: Publish to S3
+        if: github.event_name != 'pull_request'
+        env:
+          BUCKET: ${{ vars.FRONTEND_BUCKET }}
+        run: |
+          aws s3 sync build/static "s3://$BUCKET/static" --delete \
+            --cache-control "public, max-age=31536000, immutable"
+          aws s3 sync build "s3://$BUCKET" --delete --exclude "static/*" \
+            --cache-control "no-cache"
+
+      - name: Invalidate CloudFront
+        if: github.event_name != 'pull_request'
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.FRONTEND_DISTRIBUTION_ID }}" \
+            --paths "/*"
