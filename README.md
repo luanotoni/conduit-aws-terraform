@@ -1,7 +1,7 @@
 # Conduit on AWS — legacy Django app, modernized and deployed production-grade
 
 A real 2017 open-source Django app ([RealWorld/Conduit](https://github.com/gothinkster/django-realworld-example-app) —
-a Medium.com clone), upgraded from Django 1.10 (EOL) to Django 4.2 LTS, and
+a Medium.com clone), upgraded from Django 1.10 (EOL) to Django 5.2 LTS, and
 deployed to AWS with the same infrastructure pattern used in real
 migrations like [YSA Solutions' monolith-to-Fargate rebuild](https://aws.amazon.com/solutions/case-studies/ysa-solutions/):
 Terraform-managed ECS Fargate, RDS Postgres Multi-AZ, an ALB, WAF, and a
@@ -43,7 +43,7 @@ Django secret key — never in the task definition as plaintext), CloudWatch
 ```
 app/                      Django app (RealWorld/Conduit, modernized)
 frontend/                 React/Redux RealWorld client, restyled
-infra/terraform/modules/  network, database, ecs, waf, monitoring, frontend
+infra/terraform/modules/  network, database, ecs, waf, monitoring, logs, frontend, signoz
 infra/terraform/environments/prod/   wires the modules together
 infra/bootstrap/          one-time setup: GitHub OIDC role + TF state backend
 .github/workflows/        ci.yml (test + plan), cd.yml (build + deploy), frontend.yml (SPA → S3/CloudFront)
@@ -57,7 +57,8 @@ scripts/deploy-frontend.sh  build the React frontend and publish it to S3/CloudF
 - Hardcoded `SECRET_KEY`, `DEBUG=True`, SQLite → all environment-driven, with
   Postgres as the real backend (`app/conduit/settings.py`)
 - Added `/healthz` for the ALB's target group health check
-- Added WhiteNoise, gunicorn, structured logging to stdout (→ CloudWatch)
+- Added WhiteNoise, gunicorn, structured JSON logging to stdout (→ CloudWatch)
+- Django 4.2 → 5.2 LTS (4.2's remaining CVEs are only fixed on 5.2+)
 - Added the test suite — the original repo shipped with zero tests
 
 ## Setup — do this once, in order
@@ -126,8 +127,11 @@ git add . && git commit -m "Initial deploy" && git push origin main
 Watch the **Actions** tab: it builds the image, pushes to ECR, runs
 migrations as a one-off task, then updates the service. Once it's green:
 ```bash
-curl http://<alb_dns_name>/healthz
+curl "$(terraform output -raw frontend_url)/api/tags"
 ```
+The ALB only accepts traffic from CloudFront, so curling `alb_dns_name`
+directly times out. To debug the ALB on its own, apply with
+`-var restrict_alb_to_cloudfront=false`.
 
 ### 4b. Publish the frontend
 `frontend/` is the [RealWorld react-redux client](https://github.com/gothinkster/react-redux-realworld-example-app),
@@ -142,9 +146,9 @@ From then on every push to `main` touching `frontend/` builds it and publishes
 it (`.github/workflows/frontend.yml`). For a manual deploy from your machine:
 `scripts/deploy-frontend.sh`. The site URL is `terraform output -raw frontend_url`.
 
-The build uses `REACT_APP_API_ROOT=/api`; CloudFront forwards `/api/*` to
-the ALB, so the browser only ever talks to one HTTPS origin. Locally,
-`cd frontend && npm install && npm start` talks to the ALB directly.
+The app always calls the API at `/api`; CloudFront forwards `/api/*` to the
+ALB, so the browser only ever talks to one HTTPS origin. The frontend builds
+with Vite (`npm run build` → `build/`, hashed assets under `build/static/`).
 
 ### 5. Tear it down when you're done demoing
 ```bash
@@ -159,6 +163,65 @@ occasionally survive a destroy and quietly keep billing.
 cd app
 docker compose up --build
 curl http://localhost:8000/healthz
+
+cd ../frontend
+npm install && npm start   # http://localhost:4100, /api proxied to :8000
+```
+Set `API_PROXY_TARGET` to point the dev server's `/api` proxy somewhere else.
+
+## Observability
+
+- **Structured logs**: Django writes one JSON object per line. Every request
+  logs a `request` event (`method`, `route`, `status`, `duration_ms`,
+  `user_id`) and every line carries a `request_id` — the ALB's
+  `X-Amzn-Trace-Id` when present, echoed back as the `X-Request-Id` response
+  header, so a user-reported error can be traced to its log lines.
+- **Metrics from logs**: CloudWatch metric filters turn those events into
+  `Conduit/App` metrics (`Requests`, `Http5xx`, `RequestDuration`,
+  `ErrorLogs`) — no agent or SDK in the container.
+- **Alarms → SNS email**: availability SLO (more than 1% 5xx at the ALB for
+  15 min), Django ERROR logs, plus the existing ECS/ALB/RDS alarms.
+- **Dashboard**: alarm status, app request rate and latency percentiles,
+  ECS, ALB, RDS (including connections), WAF allowed/blocked, CloudFront error
+  rates, and a table of recent application errors.
+- **Saved Logs Insights queries** (`conduit-prod/...`): errors, slowest routes
+  (p95/p99), 4xx/5xx by route, trace one request by id, Postgres slow queries,
+  rejected VPC flows.
+- **More log sources**: Postgres log (queries over 500ms) exported to
+  CloudWatch, VPC Flow Logs (REJECT only by default), and ALB + CloudFront
+  access logs in an S3 bucket with 30-day expiry
+  (`terraform output -raw access_logs_bucket`).
+- **Distributed tracing → self-hosted SigNoz** (`modules/signoz`): Django and
+  psycopg2 are instrumented with OpenTelemetry (`apps/core/tracing.py`) and
+  export OTLP/HTTP to a SigNoz collector on a private EC2 instance (`t3.large`,
+  ~US$60/month, `enable_signoz = false` turns it off). Every request becomes a
+  trace with its SQL queries as child spans, and each JSON log line carries the
+  `trace_id`, so a log line in CloudWatch leads straight to its trace.
+  Health checks are excluded. CloudWatch stays the source of alarms.
+  - Nothing is exposed outside the VPC: the collector only accepts the ECS
+    tasks' security group on 4318, and the UI is reached over Session Manager:
+    `terraform output -raw signoz_ui_command`, then open http://localhost:8080
+    (the first visit creates the admin account).
+  - The collector is found at `signoz.conduit.internal` (Route 53 private
+    zone), so the task definition doesn't change when the instance does.
+  - Installed on first boot with SigNoz's Foundry, with every binary pinned
+    and SHA-256 checked (`user-data.sh.tftpl`, progress in
+    `/var/log/cloud-init-output.log`). Data lives on the instance's EBS volume:
+    it survives reboots and AWS host recovery, not a replacement.
+  - Terraform ignores `container_definitions` after bootstrap, so enabling
+    SigNoz on an already deployed stack also needs `OTEL_EXPORTER_OTLP_ENDPOINT`
+    and `OTEL_RESOURCE_ATTRIBUTES` added to the live task definition once.
+
+## Security scanning
+
+Trivy runs on every PR (`ci.yml`: dependencies, secrets and Terraform/
+Dockerfile misconfigurations) and on every deploy (`cd.yml`: the built image,
+before it is pushed). Any HIGH/CRITICAL finding fails the job unless it is
+accepted, with a written reason, in `.trivyignore.yaml`. Trivy is installed
+from a pinned release verified by checksum (`scripts/install-trivy.sh`).
+Run it locally with:
+```bash
+trivy fs --ignorefile .trivyignore.yaml --skip-dirs '**/node_modules' .
 ```
 
 ## Notes on deliberate design decisions (good material for the writeup)

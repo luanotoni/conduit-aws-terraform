@@ -4,7 +4,8 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import agent from '../../agent';
 import { connect } from 'react-redux';
-import marked from 'marked';
+import DOMPurify from 'dompurify';
+import { marked } from 'marked';
 import { ARTICLE_PAGE_LOADED, ARTICLE_PAGE_UNLOADED } from '../../constants/actionTypes';
 
 const mapStateToProps = state => ({
@@ -50,7 +51,9 @@ class Article extends React.Component {
       );
     }
 
-    const markup = { __html: marked(this.props.article.body, { sanitize: true }) };
+    // Article bodies are user-written markdown, so the rendered HTML is
+    // untrusted: sanitize it before handing it to dangerouslySetInnerHTML.
+    const markup = { __html: DOMPurify.sanitize(marked.parse(this.props.article.body)) };
     const canModify = this.props.currentUser &&
       this.props.currentUser.username === this.props.article.author.username;
     return (

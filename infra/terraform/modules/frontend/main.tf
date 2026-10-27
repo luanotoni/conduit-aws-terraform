@@ -149,5 +149,14 @@ resource "aws_cloudfront_distribution" "this" {
     cloudfront_default_certificate = true
   }
 
+  dynamic "logging_config" {
+    for_each = var.access_logs_bucket_domain_name != "" ? [var.access_logs_bucket_domain_name] : []
+    content {
+      bucket          = logging_config.value
+      prefix          = "cloudfront/"
+      include_cookies = false
+    }
+  }
+
   tags = { Name = "${local.name_prefix}-frontend" }
 }

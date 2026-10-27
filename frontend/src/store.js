@@ -5,7 +5,7 @@ import { promiseMiddleware, localStorageMiddleware } from './middleware';
 import reducer from './reducer';
 
 import { routerMiddleware } from 'react-router-redux'
-import createHistory from 'history/createBrowserHistory';
+import { createBrowserHistory as createHistory } from 'history';
 
 export const history = createHistory();
 
@@ -13,7 +13,7 @@ export const history = createHistory();
 const myRouterMiddleware = routerMiddleware(history);
 
 const getMiddleware = () => {
-  if (process.env.NODE_ENV === 'production') {
+  if (import.meta.env.PROD) {
     return applyMiddleware(myRouterMiddleware, promiseMiddleware, localStorageMiddleware);
   } else {
     // Enable additional logging in non-production environments.

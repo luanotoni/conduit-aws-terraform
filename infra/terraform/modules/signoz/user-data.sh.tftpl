@@ -1,0 +1,55 @@
+#!/bin/bash
+# Installs SigNoz with Foundry (https://signoz.io/docs/install/docker/) on
+# first boot. Every download is pinned and checked against its published
+# SHA-256, same as scripts/install-trivy.sh. Output: /var/log/cloud-init-output.log
+set -euo pipefail
+
+COMPOSE_VERSION="v5.6.0"
+COMPOSE_SHA256="40343e21ca777173e69cff5dbafeb37c6f81f3b0d57d9e597f036e95eb63e76a"
+FOUNDRY_VERSION="v0.3.0"
+FOUNDRY_SHA256="7555f91ee87a9d0d517009fc859ef64be76ad8b045446b2fe4360b896dc5838d"
+
+dnf install -y docker
+systemctl enable --now docker
+
+plugins=/usr/local/lib/docker/cli-plugins
+mkdir -p "$plugins"
+curl -fsSL -o "$plugins/docker-compose" \
+  "https://github.com/docker/compose/releases/download/$COMPOSE_VERSION/docker-compose-linux-x86_64"
+echo "$COMPOSE_SHA256  $plugins/docker-compose" | sha256sum --check --quiet
+chmod 0755 "$plugins/docker-compose"
+
+tmp="$(mktemp -d)"
+curl -fsSL -o "$tmp/foundry.tar.gz" \
+  "https://github.com/SigNoz/foundry/releases/download/$FOUNDRY_VERSION/foundry_linux_amd64.tar.gz"
+echo "$FOUNDRY_SHA256  $tmp/foundry.tar.gz" | sha256sum --check --quiet
+tar -xzf "$tmp/foundry.tar.gz" -C "$tmp"
+install -m 0755 "$tmp/foundry_linux_amd64/bin/foundryctl" /usr/local/bin/foundryctl
+rm -rf "$tmp"
+
+# Foundry leaves the collector images on :latest unless they are set here.
+mkdir -p /opt/signoz
+cat > /opt/signoz/casting.yaml <<'EOF'
+apiVersion: v1alpha1
+kind: Installation
+metadata:
+  name: signoz
+spec:
+  deployment:
+    flavor: compose
+    mode: docker
+  signoz:
+    spec:
+      image: signoz/signoz:${signoz_version}
+  ingester:
+    spec:
+      image: signoz/signoz-otel-collector:${collector_version}
+  telemetrystore:
+    spec:
+      migration:
+        image: signoz/signoz-otel-collector:${collector_version}
+EOF
+
+# Containers are `restart: unless-stopped`, so they come back after a reboot.
+cd /opt/signoz
+foundryctl cast -f casting.yaml

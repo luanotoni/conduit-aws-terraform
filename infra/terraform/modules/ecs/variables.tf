@@ -82,6 +82,12 @@ variable "cors_allowed_origins" {
   default = "http://localhost:4100"
 }
 
+variable "otlp_endpoint" {
+  description = "OTLP/HTTP collector URL (SigNoz). Empty leaves tracing off."
+  type        = string
+  default     = ""
+}
+
 variable "enable_https" {
   description = "Requires acm_certificate_arn to be set. Leave false to stand the project up quickly on plain HTTP via the ALB's DNS name."
   type        = bool
@@ -91,4 +97,21 @@ variable "enable_https" {
 variable "acm_certificate_arn" {
   type    = string
   default = ""
+}
+
+variable "vpc_cidr" {
+  description = "Scopes the ALB and task egress rules to the VPC"
+  type        = string
+}
+
+variable "restrict_alb_to_cloudfront" {
+  description = "Accept HTTP on the ALB only from CloudFront. Set false to curl the ALB directly while debugging."
+  type        = bool
+  default     = true
+}
+
+variable "access_logs_bucket" {
+  description = "S3 bucket for ALB access logs (written under alb/). Empty disables them."
+  type        = string
+  default     = ""
 }

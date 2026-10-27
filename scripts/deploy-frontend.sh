@@ -21,7 +21,7 @@ FRONTEND_URL="$(terraform -chdir="$TF_DIR" output -raw frontend_url)"
 echo "Building $FRONTEND_DIR"
 cd "$FRONTEND_DIR"
 [ -d node_modules ] || npm ci
-REACT_APP_API_ROOT=/api npm run build
+npm run build
 
 # Fingerprinted assets never change under the same name: cache them for a year.
 aws s3 sync build/static "s3://$BUCKET/static" --delete \

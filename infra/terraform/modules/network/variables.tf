@@ -36,3 +36,14 @@ variable "single_nat_gateway" {
   type        = bool
   default     = false
 }
+
+variable "flow_logs_traffic_type" {
+  description = "REJECT, ACCEPT or ALL. ALL is the most useful for forensics and the most expensive to ingest."
+  type        = string
+  default     = "REJECT"
+}
+
+variable "flow_logs_retention_days" {
+  type    = number
+  default = 14
+}

@@ -1,0 +1,77 @@
+# Accepted Trivy findings. Every entry needs a reason; anything not listed here
+# fails CI at HIGH/CRITICAL (see .github/workflows/ci.yml).
+# Run locally: trivy fs --ignorefile .trivyignore.yaml .
+
+misconfigurations:
+  # --- Customer managed KMS keys ------------------------------------------------
+  # AWS managed keys already encrypt these at rest. A CMK per resource costs
+  # $1/month each and only adds value with cross-account access or key-policy
+  # separation of duties, neither of which this project has. The one place a
+  # CMK is functionally required (SNS topic used by CloudWatch alarms) has one.
+  - id: AWS-0132
+    statement: S3 buckets use SSE-S3; ALB and CloudFront log delivery only support SSE-S3 anyway
+  - id: AWS-0017
+    statement: CloudWatch log groups use the default service-side encryption
+  - id: AWS-0025
+    statement: Terraform lock table only holds lock ids, encrypted with the AWS owned key
+  - id: AWS-0033
+    statement: ECR images are encrypted with AES256 by default
+  - id: AWS-0078
+    statement: Performance Insights uses the AWS managed RDS key
+  - id: AWS-0098
+    statement: Secrets Manager uses the AWS managed key; only this account's ECS execution role can read them
+
+  # --- Public entry point ----------------------------------------------------------
+  - id: AWS-0053
+    paths: ["infra/terraform/modules/ecs/main.tf"]
+    statement: >-
+      CloudFront needs a public custom origin. The ALB security group only accepts
+      CloudFront's origin-facing prefix list and WAF is attached. Next step: CloudFront
+      VPC origins with an internal ALB.
+  - id: AWS-0054
+    paths: ["infra/terraform/modules/ecs/main.tf"]
+    statement: >-
+      No domain/ACM certificate yet. Viewers use HTTPS to CloudFront; the HTTP hop is
+      CloudFront -> ALB only. enable_https=true switches the listener to a redirect.
+  - id: AWS-0104
+    paths: ["infra/terraform/modules/ecs/main.tf"]
+    statement: >-
+      Tasks need HTTPS (443 only) to ECR, Secrets Manager, CloudWatch Logs and SSM
+      through the NAT Gateway. VPC endpoints would remove it at ~$7/month each per AZ.
+  - id: AWS-0104
+    paths: ["infra/terraform/modules/signoz/main.tf"]
+    statement: >-
+      The SigNoz instance pulls Docker Hub images and GitHub releases (pinned, SHA-256
+      checked) and talks to SSM, all over 443 through the NAT Gateway. Those hosts
+      have no fixed IP ranges to allow-list. No inbound path from outside the VPC.
+  - id: AWS-0011
+    paths: ["infra/terraform/modules/frontend/main.tf"]
+    statement: >-
+      The WAF is on the ALB, so every /api request still goes through it. The S3
+      origin only serves the public static build.
+  - id: AWS-0010
+    paths: ["infra/terraform/modules/frontend/main.tf"]
+    statement: Logging is a dynamic block; the prod environment always passes the access logs bucket
+
+  # --- Data protection that only matters once there is real data -------------------
+  - id: AWS-0077
+    paths: ["infra/terraform/modules/database/main.tf"]
+    statement: Demo environment, recreated on demand; raise db_backup_retention_days when holding real data
+  - id: AWS-0177
+    paths: ["infra/terraform/modules/database/main.tf"]
+    statement: Off so `terraform destroy` works for the demo; the variable exists to turn it on
+  - id: AWS-0176
+    paths: ["infra/terraform/modules/database/main.tf"]
+    statement: The app authenticates with a password from Secrets Manager; IAM auth would need token refresh in Django
+  - id: AWS-0090
+    paths:
+      - "infra/terraform/modules/frontend/main.tf"
+      - "infra/terraform/modules/logs/main.tf"
+    statement: The frontend bucket is a reproducible build artifact; the logs bucket expires objects anyway
+  - id: AWS-0089
+    statement: >-
+      Access to the frontend is logged at CloudFront; the logs and Terraform state
+      buckets logging to themselves would add noise, not signal
+  - id: AWS-0024
+    paths: ["infra/bootstrap/main.tf"]
+    statement: The lock table holds no data worth restoring; a lost lock is recreated on the next run

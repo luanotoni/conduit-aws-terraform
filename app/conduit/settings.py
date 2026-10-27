@@ -68,6 +68,9 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     # First, so ALB health checks (Host = task private IP) skip ALLOWED_HOSTS.
     'conduit.apps.core.middleware.HealthCheckMiddleware',
+    # Right after it: health checks stay out of the request log, everything
+    # else (including requests rejected by later middleware) is logged.
+    'conduit.apps.core.observability.RequestLogMiddleware',
     'django.middleware.security.SecurityMiddleware',
     # Serves collected static files directly from the container, so we don't
     # need a separate nginx sidecar just to hand out CSS/JS/admin assets.
@@ -178,16 +181,24 @@ REST_FRAMEWORK = {
 
 
 # --- Logging --------------------------------------------------------------------
-# Everything goes to stdout. The ECS task definition's `awslogs` driver picks
-# this up and ships it straight to CloudWatch Logs — no file handling, no log
-# rotation to think about inside the container.
+# Everything goes to stdout as one JSON object per line. The ECS task
+# definition's `awslogs` driver ships it to CloudWatch Logs, where metric
+# filters and Logs Insights queries read the fields directly.
 
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'filters': {
+        'request_id': {'()': 'conduit.apps.core.observability.RequestIdFilter'},
+    },
+    'formatters': {
+        'json': {'()': 'conduit.apps.core.observability.JsonFormatter'},
+    },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
+            'filters': ['request_id'],
+            'formatter': 'json',
         },
     },
     'root': {

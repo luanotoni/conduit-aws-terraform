@@ -49,3 +49,13 @@ output "frontend_bucket_name" {
 output "frontend_distribution_id" {
   value = module.frontend.distribution_id
 }
+
+output "access_logs_bucket" {
+  description = "ALB (alb/) and CloudFront (cloudfront/) access logs"
+  value       = module.logs.bucket_id
+}
+
+output "signoz_ui_command" {
+  description = "Opens the SigNoz UI on http://localhost:8080 through Session Manager"
+  value       = var.enable_signoz ? "aws ssm start-session --target ${module.signoz[0].instance_id} --document-name AWS-StartPortForwardingSession --parameters portNumber=8080,localPortNumber=8080" : null
+}

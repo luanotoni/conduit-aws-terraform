@@ -32,18 +32,16 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      # Same-origin API: CloudFront proxies /api/* to the ALB.
+      # The app calls the API at /api; CloudFront proxies it to the ALB.
       - name: Build
         run: npm run build
-        env:
-          REACT_APP_API_ROOT: /api
 
       - uses: aws-actions/configure-aws-credentials@v4
         if: github.event_name != 'pull_request'
