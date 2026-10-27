@@ -6,6 +6,7 @@ on:
     paths:
       - "app/**"
       - ".github/workflows/cd.yml"
+      - ".trivyignore.yaml"
 
 permissions:
   id-token: write
@@ -40,16 +41,29 @@ jobs:
 
       # ECR repo is IMMUTABLE-tagged (see infra/terraform/modules/ecs), so
       # every deploy gets its own tag - no ambiguous floating "latest".
-      - name: Build and push image
+      - name: Build image
         id: build-image
         working-directory: app
         env:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .
-          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker build --pull -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Install Trivy
+        run: scripts/install-trivy.sh
+
+      # Gate before the image ever reaches ECR. --ignore-unfixed: a CVE with no
+      # Debian/PyPI fix yet can't be patched by rebuilding, so it shouldn't
+      # block a deploy; it still shows up in ECR's scan-on-push results.
+      - name: Scan image
+        run: |
+          trivy image --ignorefile .trivyignore.yaml --ignore-unfixed \
+            --severity HIGH,CRITICAL --exit-code 1 "${{ steps.build-image.outputs.image }}"
+
+      - name: Push image
+        run: docker push "${{ steps.build-image.outputs.image }}"
 
       - name: Fetch current task definition
         run: |

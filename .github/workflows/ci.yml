@@ -13,6 +13,26 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION }}
 
 jobs:
+  security-scan:
+    name: Trivy (dependencies, secrets, IaC)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Trivy
+        run: scripts/install-trivy.sh
+
+      # Fails the PR on any HIGH/CRITICAL finding that isn't accepted, with a
+      # reason, in .trivyignore.yaml. The full report (all severities) is
+      # printed first so lower-severity findings stay visible.
+      - name: Scan repository
+        run: |
+          trivy fs --scanners vuln,secret,misconfig --ignorefile .trivyignore.yaml \
+            --skip-dirs '**/node_modules' --skip-dirs '**/.terraform' .
+          trivy fs --scanners vuln,secret,misconfig --ignorefile .trivyignore.yaml \
+            --skip-dirs '**/node_modules' --skip-dirs '**/.terraform' \
+            --severity HIGH,CRITICAL --exit-code 1 --quiet .
+
   test:
     name: Lint & test Django app
     runs-on: ubuntu-latest
