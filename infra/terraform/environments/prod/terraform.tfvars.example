@@ -14,3 +14,4 @@ alert_email = "you@example.com"
 # --- Cut these to save money if the deadline is tight ---
 # single_nat_gateway = true
 # db_multi_az        = false
+# enable_signoz      = false # self-hosted tracing, ~US$60/month

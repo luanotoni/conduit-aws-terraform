@@ -16,5 +16,11 @@ output "credentials_secret_arn" {
 }
 
 output "db_instance_id" {
-  value = aws_db_instance.this.id
+  # `identifier`, not `id`: since AWS provider v5 `id` is the DbiResourceId
+  # (db-XXXX), which is not what the DBInstanceIdentifier metric dimension uses.
+  value = aws_db_instance.this.identifier
+}
+
+output "log_group_name" {
+  value = aws_cloudwatch_log_group.postgresql.name
 }

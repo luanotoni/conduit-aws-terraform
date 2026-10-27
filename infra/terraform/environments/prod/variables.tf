@@ -82,3 +82,20 @@ variable "db_backup_retention_days" {
   type    = number
   default = 1
 }
+
+variable "restrict_alb_to_cloudfront" {
+  description = "false lets you reach the ALB directly (e.g. curl its DNS name) while debugging"
+  type        = bool
+  default     = true
+}
+
+variable "enable_signoz" {
+  description = "Self-hosted SigNoz on EC2 for tracing (~US$60/month for the default t3.large)"
+  type        = bool
+  default     = true
+}
+
+variable "signoz_instance_type" {
+  type    = string
+  default = "t3.large"
+}

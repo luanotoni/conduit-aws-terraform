@@ -30,3 +30,24 @@ variable "target_group_arn_suffix" {
 variable "db_instance_id" {
   type = string
 }
+
+variable "app_log_group_name" {
+  description = "CloudWatch log group the Django containers write to"
+  type        = string
+}
+
+variable "db_log_group_name" {
+  type = string
+}
+
+variable "flow_logs_log_group_name" {
+  type = string
+}
+
+variable "waf_web_acl_name" {
+  type = string
+}
+
+variable "cloudfront_distribution_id" {
+  type = string
+}

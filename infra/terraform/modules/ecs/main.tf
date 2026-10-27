@@ -51,17 +51,26 @@ resource "aws_secretsmanager_secret_version" "django_secret_key" {
 
 # --- Security groups ----------------------------------------------------------------
 
+# CloudFront is the only intended entry point (it proxies /api/* here), so by
+# default plain HTTP is accepted from CloudFront's origin-facing IP ranges only.
+# That prefix list counts as ~55 rules against the 60-rule SG quota, which is
+# why it is used for a single port.
+data "aws_ec2_managed_prefix_list" "cloudfront" {
+  name = "com.amazonaws.global.cloudfront.origin-facing"
+}
+
 resource "aws_security_group" "alb" {
   name_prefix = "${local.name_prefix}-alb-"
   description = "Internet-facing ALB"
   vpc_id      = var.vpc_id
 
   ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    description     = var.restrict_alb_to_cloudfront ? "HTTP from CloudFront only" : "HTTP"
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    prefix_list_ids = var.restrict_alb_to_cloudfront ? [data.aws_ec2_managed_prefix_list.cloudfront.id] : []
+    cidr_blocks     = var.restrict_alb_to_cloudfront ? [] : ["0.0.0.0/0"]
   }
 
   dynamic "ingress" {
@@ -75,11 +84,14 @@ resource "aws_security_group" "alb" {
     }
   }
 
+  # Only ever talks to the tasks. A CIDR rather than the tasks' security group
+  # because that group already references this one (would be a cycle).
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    description = "To the Django containers"
+    from_port   = var.container_port
+    to_port     = var.container_port
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
 
   lifecycle {
@@ -102,11 +114,33 @@ resource "aws_security_group" "ecs_tasks" {
     security_groups = [aws_security_group.alb.id]
   }
 
+  # No VPC endpoints, so ECR, Secrets Manager, CloudWatch Logs and SSM are
+  # reached over HTTPS through the NAT Gateway.
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    description = "HTTPS to AWS APIs via NAT"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "Postgres inside the VPC"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  dynamic "egress" {
+    for_each = var.otlp_endpoint != "" ? [4318] : []
+    content {
+      description = "OTLP traces to the SigNoz collector inside the VPC"
+      from_port   = egress.value
+      to_port     = egress.value
+      protocol    = "tcp"
+      cidr_blocks = [var.vpc_cidr]
+    }
   }
 
   lifecycle {
@@ -124,6 +158,19 @@ resource "aws_lb" "this" {
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
   subnets            = var.public_subnet_ids
+
+  # Reject requests with malformed header names instead of passing them on
+  # (request smuggling / header injection defence).
+  drop_invalid_header_fields = true
+
+  dynamic "access_logs" {
+    for_each = var.access_logs_bucket != "" ? [var.access_logs_bucket] : []
+    content {
+      enabled = true
+      bucket  = access_logs.value
+      prefix  = "alb"
+    }
+  }
 
   tags = { Name = "${local.name_prefix}-alb" }
 }
@@ -295,12 +342,15 @@ resource "aws_ecs_task_definition" "this" {
         containerPort = var.container_port
         protocol      = "tcp"
       }]
-      environment = [
+      environment = concat([
         { name = "DJANGO_DEBUG", value = "false" },
         { name = "DJANGO_ALLOWED_HOSTS", value = local.allowed_hosts },
         { name = "CORS_ALLOWED_ORIGINS", value = var.cors_allowed_origins },
         { name = "DJANGO_SECURE_SSL_REDIRECT", value = tostring(var.enable_https) },
-      ]
+        ], var.otlp_endpoint == "" ? [] : [
+        { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = var.otlp_endpoint },
+        { name = "OTEL_RESOURCE_ATTRIBUTES", value = "deployment.environment=${var.environment}" },
+      ])
       secrets = [
         { name = "DJANGO_SECRET_KEY", valueFrom = aws_secretsmanager_secret.django_secret_key.arn },
         { name = "POSTGRES_DB", valueFrom = "${var.db_credentials_secret_arn}:POSTGRES_DB::" },

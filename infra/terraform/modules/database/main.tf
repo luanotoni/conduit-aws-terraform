@@ -23,12 +23,10 @@ resource "aws_security_group" "db" {
   description = "RDS Postgres - ingress attached from the root module to avoid a circular dependency with the ECS module security group"
   vpc_id      = var.vpc_id
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  # RDS only answers connections; it never needs to open one. An explicit
+  # empty list (not an omitted block) is what makes Terraform remove the
+  # default allow-all egress rule.
+  egress = []
 
   lifecycle {
     create_before_destroy = true
@@ -53,6 +51,13 @@ resource "aws_db_parameter_group" "this" {
   lifecycle {
     create_before_destroy = true
   }
+}
+
+# Created here so it gets a retention period; RDS would otherwise create it on
+# first export with logs kept forever.
+resource "aws_cloudwatch_log_group" "postgresql" {
+  name              = "/aws/rds/instance/${local.name_prefix}-db/postgresql"
+  retention_in_days = var.log_retention_days
 }
 
 resource "aws_db_instance" "this" {
@@ -84,6 +89,12 @@ resource "aws_db_instance" "this" {
   final_snapshot_identifier = var.deletion_protection ? "${local.name_prefix}-db-final" : null
 
   performance_insights_enabled = true
+
+  # Ships the Postgres log (including the >500ms slow-query lines from the
+  # parameter group above) to CloudWatch Logs next to the app's logs.
+  enabled_cloudwatch_logs_exports = ["postgresql"]
+
+  depends_on = [aws_cloudwatch_log_group.postgresql]
 
   tags = {
     Name = "${local.name_prefix}-db"

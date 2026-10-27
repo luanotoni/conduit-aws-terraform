@@ -56,3 +56,8 @@ variable "engine_version" {
   type    = string
   default = "16.4"
 }
+
+variable "log_retention_days" {
+  type    = number
+  default = 30
+}
