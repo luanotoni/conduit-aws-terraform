@@ -1,7 +1,7 @@
 # ![Django DRF Example App](project-logo.png)
 
 > **Note:** this is a fork of the original RealWorld/Conduit tutorial app,
-> modernized (Django 1.10 → 4.2 LTS) and deployed to AWS as part of an
+> modernized (Django 1.10 → 5.2 LTS) and deployed to AWS as part of an
 > infrastructure portfolio project. See the [top-level README](../README.md)
 > for the architecture, setup steps, and what changed in the app itself.
 

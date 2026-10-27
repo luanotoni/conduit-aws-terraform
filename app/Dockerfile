@@ -25,11 +25,16 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH" \
-    DJANGO_SETTINGS_MODULE=conduit.settings
+    DJANGO_SETTINGS_MODULE=conduit.settings \
+    OTEL_SERVICE_NAME=conduit-api \
+    OTEL_PYTHON_DJANGO_EXCLUDED_URLS=healthz
 
-# libpq5 is the runtime Postgres client lib psycopg2 links against.
+# libpq5 is the runtime Postgres client lib psycopg2 links against. The
+# upgrade pulls Debian security fixes released after the base image was built,
+# which the image scan in CD would otherwise flag.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq5 curl \
+    && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends libpq5 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 1000 appuser
 
@@ -50,5 +55,10 @@ USER appuser
 
 EXPOSE 8000
 
+# Used by docker/docker-compose. ECS ignores it: there the ALB target group
+# health check on the same endpoint decides whether a task is healthy.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=4)"]
+
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["gunicorn", "conduit.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--access-logfile", "-", "--error-logfile", "-"]
+CMD ["gunicorn", "conduit.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--error-logfile", "-"]

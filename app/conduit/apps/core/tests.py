@@ -1,6 +1,10 @@
 import json
+import logging
 
 from django.test import TestCase
+from opentelemetry.sdk.trace import TracerProvider
+
+from conduit.apps.core.observability import JsonFormatter, RequestIdFilter, request_id_var
 
 
 class HealthcheckTests(TestCase):
@@ -152,3 +156,48 @@ class AuthFlowSmokeTests(TestCase):
     def test_authenticated_endpoint_rejects_missing_token(self):
         response = self.client.get("/api/user/")
         self.assertEqual(response.status_code, 403)
+
+
+class RequestLogTests(TestCase):
+    def test_request_is_logged_as_structured_event(self):
+        with self.assertLogs("conduit.request", level="INFO") as logs:
+            response = self.client.get(
+                "/api/tags", HTTP_X_AMZN_TRACE_ID="Root=1-abc-def"
+            )
+        self.assertEqual(response["X-Request-Id"], "Root=1-abc-def")
+        record = logs.records[0]
+        self.assertEqual(record.status, 200)
+        self.assertEqual(record.method, "GET")
+        self.assertEqual(record.route, "^api/tags/?$")
+        self.assertGreaterEqual(record.duration_ms, 0)
+
+    def test_healthcheck_is_not_logged(self):
+        with self.assertNoLogs("conduit.request"):
+            self.client.get("/healthz")
+
+    def test_json_formatter_includes_request_context(self):
+        token = request_id_var.set("req-1")
+        try:
+            record = logging.makeLogRecord(
+                {"name": "x", "levelname": "INFO", "msg": "hi", "status": 500}
+            )
+            RequestIdFilter().filter(record)
+        finally:
+            request_id_var.reset(token)
+        line = json.loads(JsonFormatter().format(record))
+        self.assertEqual(line["message"], "hi")
+        self.assertEqual(line["status"], 500)
+        self.assertEqual(line["request_id"], "req-1")
+
+    def test_log_carries_the_active_trace_id(self):
+        tracer = TracerProvider().get_tracer(__name__)
+        with tracer.start_as_current_span("request") as span:
+            record = logging.makeLogRecord({"msg": "hi"})
+            RequestIdFilter().filter(record)
+        line = json.loads(JsonFormatter().format(record))
+        self.assertEqual(line["trace_id"], f"{span.get_span_context().trace_id:032x}")
+
+    def test_log_has_no_trace_id_outside_a_span(self):
+        record = logging.makeLogRecord({"msg": "hi"})
+        RequestIdFilter().filter(record)
+        self.assertNotIn("trace_id", json.loads(JsonFormatter().format(record)))
