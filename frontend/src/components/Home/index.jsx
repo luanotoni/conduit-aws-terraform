@@ -10,8 +10,6 @@ import {
   APPLY_TAG_FILTER
 } from '../../constants/actionTypes';
 
-const Promise = global.Promise;
-
 const mapStateToProps = state => ({
   ...state.home,
   appName: state.common.appName,

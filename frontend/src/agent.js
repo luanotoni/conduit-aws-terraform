@@ -1,12 +1,11 @@
 import superagentPromise from 'superagent-promise';
 import _superagent from 'superagent';
 
-const superagent = superagentPromise(_superagent, global.Promise);
+const superagent = superagentPromise(_superagent, Promise);
 
-// Set at build time. The CloudFront build uses '/api' (same origin, proxied to
-// the ALB); `npm start` falls back to calling the ALB directly.
-const API_ROOT = process.env.REACT_APP_API_ROOT ||
-  'http://condui20261002014828978900000011-1576104406.us-east-1.elb.amazonaws.com/api';
+// Always same-origin: CloudFront proxies /api/* to the ALB in production and
+// the Vite dev server proxies it locally (see vite.config.js).
+const API_ROOT = '/api';
 
 const encode = encodeURIComponent;
 const responseBody = res => res.body;
