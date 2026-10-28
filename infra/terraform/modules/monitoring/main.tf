@@ -280,9 +280,13 @@ resource "aws_cloudwatch_metric_alarm" "availability_slo" {
   ok_actions          = [aws_sns_topic.alerts.arn]
   treat_missing_data  = "notBreaching"
 
+  # RequestCount only counts requests the ALB could route to a target, so with
+  # no healthy task it stays empty while the ALB answers 503 itself. Add the
+  # ALB's own 5xx to the denominator, or a full outage reads as 0% errors.
+  # No traffic at all is 0/0 -> no datapoint -> notBreaching.
   metric_query {
     id          = "error_rate"
-    expression  = "IF(requests > 0, 100 * (target_5xx + elb_5xx) / requests, 0)"
+    expression  = "100 * (FILL(target_5xx, 0) + FILL(elb_5xx, 0)) / (FILL(requests, 0) + FILL(elb_5xx, 0))"
     label       = "5xx rate (%)"
     return_data = true
   }
