@@ -193,8 +193,8 @@ Set `API_PROXY_TARGET` to point the dev server's `/api` proxy somewhere else.
   (`terraform output -raw access_logs_bucket`).
 - **Distributed tracing → self-hosted SigNoz** (`modules/signoz`): Django and
   psycopg2 are instrumented with OpenTelemetry (`apps/core/tracing.py`) and
-  export OTLP/HTTP to a SigNoz collector on a private EC2 instance (`t3.large`,
-  ~US$60/month, `enable_signoz = false` turns it off). Every request becomes a
+  export OTLP/HTTP to a SigNoz collector on a private EC2 instance (`m7i-flex.large`,
+  ~US$70/month, `enable_signoz = false` turns it off). Every request becomes a
   trace with its SQL queries as child spans, and each JSON log line carries the
   `trace_id`, so a log line in CloudWatch leads straight to its trace.
   Health checks are excluded. CloudWatch stays the source of alarms.

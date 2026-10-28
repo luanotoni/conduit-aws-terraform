@@ -90,12 +90,12 @@ variable "restrict_alb_to_cloudfront" {
 }
 
 variable "enable_signoz" {
-  description = "Self-hosted SigNoz on EC2 for tracing (~US$60/month for the default t3.large)"
+  description = "Self-hosted SigNoz on EC2 for tracing (~US$70/month for the default m7i-flex.large)"
   type        = bool
   default     = true
 }
 
 variable "signoz_instance_type" {
   type    = string
-  default = "t3.large"
+  default = "m7i-flex.large"
 }

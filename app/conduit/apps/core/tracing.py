@@ -28,6 +28,15 @@ def configure_tracing():
     provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
     trace.set_tracer_provider(provider)
 
+    # The OTel middleware reads the Host header first thing (even to check
+    # excluded URLs), and the ALB health check's Host is the task IP, which
+    # isn't in ALLOWED_HOSTS. Insert it right behind HealthCheckMiddleware
+    # instead of at position 0, and still ahead of the request log so log
+    # lines carry the trace_id.
+    from django.conf import settings
+
+    position = settings.MIDDLEWARE.index("conduit.apps.core.middleware.HealthCheckMiddleware") + 1
+    os.environ.setdefault("OTEL_PYTHON_DJANGO_MIDDLEWARE_POSITION", str(position))
     DjangoInstrumentor().instrument()
     # psycopg2-binary installs the same `psycopg2` module under a different
     # distribution name, which the instrumentor's version check doesn't know.
