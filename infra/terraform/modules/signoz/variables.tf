@@ -23,7 +23,7 @@ variable "ecs_tasks_security_group_id" {
 variable "instance_type" {
   description = "ClickHouse, Postgres, the collector and SigNoz share it; SigNoz asks for at least 4 GiB for Docker"
   type        = string
-  default     = "t3.large"
+  default     = "m7i-flex.large"
 }
 
 variable "volume_size_gb" {
