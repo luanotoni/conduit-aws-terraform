@@ -197,11 +197,13 @@ Set `API_PROXY_TARGET` to point the dev server's `/api` proxy somewhere else.
   ~US$70/month, `enable_signoz = false` turns it off). Every request becomes a
   trace with its SQL queries as child spans, and each JSON log line carries the
   `trace_id`, so a log line in CloudWatch leads straight to its trace.
-  Health checks are excluded. CloudWatch stays the source of alarms.
+  Health checks are answered before the OTel middleware runs, so they never
+  become traces. CloudWatch stays the source of alarms.
   - Nothing is exposed outside the VPC: the collector only accepts the ECS
     tasks' security group on 4318, and the UI is reached over Session Manager:
     `terraform output -raw signoz_ui_command`, then open http://localhost:8080
-    (the first visit creates the admin account).
+    and create the admin account on the first visit. Until an admin exists
+    the collector receives no pipeline config and drops every span.
   - The collector is found at `signoz.conduit.internal` (Route 53 private
     zone), so the task definition doesn't change when the instance does.
   - Installed on first boot with SigNoz's Foundry, with every binary pinned
@@ -211,6 +213,55 @@ Set `API_PROXY_TARGET` to point the dev server's `/api` proxy somewhere else.
   - Terraform ignores `container_definitions` after bootstrap, so enabling
     SigNoz on an already deployed stack also needs `OTEL_EXPORTER_OTLP_ENDPOINT`
     and `OTEL_RESOURCE_ATTRIBUTES` added to the live task definition once.
+
+## Verified in production
+
+All of the above was checked against a live stack on 27 Oct 2026: about
+1,600 requests of generated traffic (sign-ups, articles, comments,
+favorites, plus deliberate 4xx), then the ECS service scaled to 0 for 13
+minutes to make the alarms prove themselves. The test found three bugs that
+unit tests and `terraform plan` could not:
+
+1. **Tracing broke the ALB health checks** (#2). `DjangoInstrumentor` puts
+   its middleware at position 0 and calls `get_host()` before anything else,
+   even to check excluded URLs. The health check's Host is the task IP, so
+   `/healthz` returned 400, every target went unhealthy and ECS kept
+   replacing tasks while the ALB served traffic in fail-open mode. Fixed by
+   inserting the OTel middleware right behind `HealthCheckMiddleware`.
+
+   ![ECS tasks churning until the fix](docs/evidence/ecs-tasks-crash-loop.png)
+   ![DisallowedHost errors stop at the fix](docs/evidence/app-metric-filters.png)
+
+2. **SigNoz silently dropped every span** until an admin account existed.
+   The collector gets its pipelines from the SigNoz server over OpAMP; with
+   no organization the server rejects it and the collector runs `nop`
+   pipelines with port 4318 closed. The fix is an operational step, now in
+   the SigNoz notes above: open the UI once and create the admin.
+
+3. **The SLO alarm was blind to a full outage** (#3). ALB `RequestCount`
+   only counts requests routed to a target, so with no task it stays empty
+   while the ALB answers 503 itself, and the old expression read 0% errors.
+   The ALB's own 5xx now count in the denominator.
+
+   ![RequestCount vanishes, ELB 503s don't](docs/evidence/alb-requests-vs-503.png)
+   ![SLO alarm going to 100%](docs/evidence/slo-alarm.png)
+
+The alarm then went `OK -> ALARM` at 22:39 ("3 datapoints [100.0, 100.0,
+4.7] were greater than the threshold (1.0)") and back to `OK` at 22:47, both
+delivered by SNS email. A direct request to the ALB (bypassing CloudFront)
+timed out and showed up as `REJECT` in the VPC Flow Logs.
+
+Traces also surfaced two things worth fixing next: creating an article runs
+13 SQL queries (one per tag), and sign-up/login take ~2 s with no span in
+between, which is PBKDF2 password hashing on a 0.25 vCPU task, not the
+database.
+
+![SigNoz service overview](docs/evidence/signoz-service-overview.jpg)
+![POST /api/articles: 13 SQL spans](docs/evidence/signoz-trace-post-article.jpg)
+![POST /api/users: 2.1 s, almost all of it hashing](docs/evidence/signoz-trace-register.jpg)
+
+On an AWS Free plan account, `t3.large` is rejected at apply time; the
+SigNoz default is `m7i-flex.large` (same 2 vCPU / 8 GiB) for that reason.
 
 ## Security scanning
 
