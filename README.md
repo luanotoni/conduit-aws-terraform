@@ -275,7 +275,7 @@ Run it locally with:
 trivy fs --ignorefile .trivyignore.yaml --skip-dirs '**/node_modules' .
 ```
 
-## Notes on deliberate design decisions (good material for the writeup)
+## Design decisions
 
 - **Migrations run as a one-off ECS task, not on container boot.** If
   `migrate` ran in the entrypoint, an autoscaling event launching 3 tasks at
@@ -292,19 +292,3 @@ trivy fs --ignorefile .trivyignore.yaml --skip-dirs '**/node_modules' .
   task definition's `container_definitions` is under `lifecycle {
   ignore_changes }` in Terraform, since the CD pipeline registers new
   revisions directly via the AWS CLI.
-
-## Suggested LinkedIn post structure
-
-1. **The pattern**: a common real-world scenario (cite the case study that
-   inspired this — YSA Solutions, Vidsy, or similar) — legacy monolith,
-   manual deploys, no IaC.
-2. **What you actually built**: modernized a real 2017 Django app, then gave
-   it the same infrastructure shape used in production migrations at that
-   scale — Terraform, ECS Fargate, autoscaling, WAF, full CI/CD via OIDC.
-3. **Something you can show, not just tell**: a screenshot/GIF of a task
-   dying and ECS self-healing, or the CloudWatch alarm firing when you forced
-   an error.
-4. **The honest caveat**: this app didn't need this much infrastructure —
-   you built it this way to demonstrate you can design for scale when a
-   real system requires it.
-5. Link to the repo.
